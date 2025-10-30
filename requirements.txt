@@ -4,5 +4,6 @@ numpy
 matplotlib
 seaborn
 scikit-learn
-plotly
-altair
+xgboost
+lightgbm
+shap
