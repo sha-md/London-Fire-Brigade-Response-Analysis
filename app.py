@@ -1,111 +1,135 @@
-from collections import OrderedDict
 import streamlit as st
 import pandas as pd
 import numpy as np
-from PIL import Image
-
-# ==========================
-# CONFIG SECTION
-# ==========================
-
-class Member:
-    def __init__(self, name: str, linkedin_url: str = None, github_url: str = None) -> None:
-        self.name = name
-        self.linkedin_url = linkedin_url
-        self.github_url = github_url
-
-    def sidebar_markdown(self):
-        markdown = f'<b style="display: inline-block; vertical-align: middle; height: 100%">{self.name}</b>'
-        if self.linkedin_url is not None:
-            markdown += f' <a href={self.linkedin_url} target="_blank"><img src="https://dst-studio-template.s3.eu-west-3.amazonaws.com/linkedin-logo-black.png" alt="linkedin" width="25" style="vertical-align: middle; margin-left: 5px"/></a>'
-        if self.github_url is not None:
-            markdown += f' <a href={self.github_url} target="_blank"><img src="https://dst-studio-template.s3.eu-west-3.amazonaws.com/github-logo.png" alt="github" width="20" style="vertical-align: middle; margin-left: 5px"/></a>'
-        return markdown
-
-TITLE = "London Fire Brigade Analysis Dashboard"
-TEAM_MEMBERS = [
-    Member(
-        name="John Doe",
-        linkedin_url="https://www.linkedin.com/in/charlessuttonprofile/",
-        github_url="https://github.com/charlessutton",
-    ),
-    Member("Jane Doe"),
-]
-PROMOTION = "Promotion Bootcamp Data Scientist - April 2021"
-
-# ==========================
-# TAB 1 - INTRO
-# ==========================
-
-def intro_tab():
-    st.image("https://dst-studio-template.s3.eu-west-3.amazonaws.com/2.gif")
-    st.title("My Awesome DataScientest Project")
-    st.markdown("---")
-    st.markdown("""
-        This dashboard is built with [Streamlit](https://streamlit.io) as a DataScientest project.
-        Explore multiple tabs for insights and visualizations.
-    """)
-
-# ==========================
-# TAB 2 - SECOND TAB
-# ==========================
-
-def second_tab():
-    st.title("Second Tab")
-    st.markdown("""
-        This section demonstrates sample text, charts, and images.
-    """)
-    chart_data = pd.DataFrame(np.random.randn(20, 3), columns=list("ABC"))
-    st.line_chart(chart_data)
-    st.area_chart(chart_data)
-
-    st.markdown("### Example Image")
-    try:
-        st.image(Image.open("assets/sample-image.jpg"))
-    except:
-        st.info("Upload `assets/sample-image.jpg` to see the image here.")
-
-# ==========================
-# TAB 3 - THIRD TAB
-# ==========================
-
-def third_tab():
-    st.title("Third Tab")
-    st.markdown("Sample data table:")
-    st.dataframe(pd.DataFrame(np.random.randn(100, 4), columns=list("ABCD")))
-
-# ==========================
-# STREAMLIT APP LOGIC
-# ==========================
-
-st.set_page_config(
-    page_title=TITLE,
-    page_icon="🚒",
+import matplotlib.pyplot as plt
+import shap
+import xgboost as xgb
+import lightgbm as lgb
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import (
+    mean_absolute_error, r2_score,
+    accuracy_score, classification_report, confusion_matrix
 )
+import seaborn as sns
 
+# ---------------- APP CONFIG ----------------
+st.set_page_config(page_title="London Fire Brigade ML Dashboard", page_icon="🚒", layout="wide")
+st.title("🚒 London Fire Brigade Response Time Analysis")
 st.markdown("""
-    <style>
-    h1, h2, h3 { color: #d32f2f; }
-    </style>
-""", unsafe_allow_html=True)
+Upload a dataset and build regression or classification models using **XGBoost** or **LightGBM**.
+""")
 
-TABS = OrderedDict([
-    ("Introduction", intro_tab),
-    ("Second Tab", second_tab),
-    ("Third Tab", third_tab),
-])
+# ---------------- SIDEBAR ----------------
+task_type = st.sidebar.selectbox("Select Task Type", ["Regression", "Classification"])
+model_type = st.sidebar.selectbox("Select Model", ["XGBoost", "LightGBM"])
+test_size_ratio = st.sidebar.slider("Test Size (fraction)", 0.1, 0.5, 0.2)
+run_button = st.sidebar.button("🚀 Train Model")
 
-def run():
-    st.sidebar.image("https://dst-studio-template.s3.eu-west-3.amazonaws.com/logo-datascientest.png", width=200)
-    tab_name = st.sidebar.radio("Navigation", list(TABS.keys()), 0)
-    st.sidebar.markdown("---")
-    st.sidebar.markdown(f"## {PROMOTION}")
-    st.sidebar.markdown("### Team members:")
-    for member in TEAM_MEMBERS:
-        st.sidebar.markdown(member.sidebar_markdown(), unsafe_allow_html=True)
+# ---------------- DATA UPLOAD ----------------
+uploaded_file = st.file_uploader("📂 Upload your dataset (CSV)", type=["csv"])
 
-    # Run selected tab
-    TABS[tab_name]()
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file)
+    st.write("### Data Preview")
+    st.dataframe(df.head())
 
-if __name__ == "__main__":
-    run()
+    # Select target column
+    target_col = st.selectbox("Select Target Column", df.columns)
+
+    if run_button:
+        st.write("### Model Training and Evaluation")
+
+        # Split data
+        X = df.drop(columns=[target_col])
+        y = df[target_col]
+
+        # Handle categorical encoding
+        X = pd.get_dummies(X, drop_first=True)
+
+        # Split
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size_ratio, random_state=42)
+
+        # Scale numeric columns
+        num_cols = X_train.select_dtypes(include=['float64', 'int64']).columns
+        scaler = StandardScaler()
+        X_train[num_cols] = scaler.fit_transform(X_train[num_cols])
+        X_test[num_cols] = scaler.transform(X_test[num_cols])
+
+        # Train models
+        if task_type == "Regression":
+            if model_type == "XGBoost":
+                model = xgb.XGBRegressor(
+                    n_estimators=300, learning_rate=0.05,
+                    max_depth=6, subsample=0.8, colsample_bytree=0.8, tree_method='hist'
+                )
+            else:
+                model = lgb.LGBMRegressor(
+                    n_estimators=300, learning_rate=0.05,
+                    max_depth=6, subsample=0.8, colsample_bytree=0.8
+                )
+
+            model.fit(X_train, y_train)
+            y_pred = model.predict(X_test)
+
+            mae = mean_absolute_error(y_test, y_pred)
+            r2 = r2_score(y_test, y_pred)
+            st.write(f"**Mean Absolute Error (MAE):** {mae:.3f}")
+            st.write(f"**R² Score:** {r2:.3f}")
+
+            # Actual vs Predicted plot
+            fig, ax = plt.subplots()
+            ax.scatter(y_test, y_pred, alpha=0.4)
+            ax.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--')
+            ax.set_xlabel("Actual")
+            ax.set_ylabel("Predicted")
+            ax.set_title(f"{model_type} Regression: Actual vs Predicted")
+            st.pyplot(fig)
+
+        else:  # Classification
+            if model_type == "XGBoost":
+                model = xgb.XGBClassifier(
+                    n_estimators=300, learning_rate=0.1,
+                    max_depth=6, subsample=0.8, colsample_bytree=0.8, tree_method='hist'
+                )
+            else:
+                model = lgb.LGBMClassifier(
+                    n_estimators=300, learning_rate=0.1,
+                    max_depth=6, subsample=0.8, colsample_bytree=0.8
+                )
+
+            model.fit(X_train, y_train)
+            y_pred = model.predict(X_test)
+
+            acc = accuracy_score(y_test, y_pred)
+            st.write(f"**Accuracy:** {acc:.3f}")
+            st.text("Classification Report:")
+            st.text(classification_report(y_test, y_pred))
+
+            fig, ax = plt.subplots()
+            sns.heatmap(confusion_matrix(y_test, y_pred), annot=True, fmt='d', cmap='Blues', ax=ax)
+            st.pyplot(fig)
+
+        # Feature importance
+        st.write("### Feature Importance")
+        importances = model.feature_importances_
+        sorted_idx = np.argsort(importances)[::-1]
+        fig, ax = plt.subplots(figsize=(10, 4))
+        ax.bar(range(len(importances)), importances[sorted_idx])
+        ax.set_xticks(range(len(importances)))
+        ax.set_xticklabels(np.array(X.columns)[sorted_idx], rotation=90)
+        st.pyplot(fig)
+
+        # SHAP explanation
+        st.write("### 🔍 SHAP Summary Plot")
+        try:
+            explainer = shap.Explainer(model)
+            shap_values = explainer(X_test)
+            shap.summary_plot(shap_values, X_test, show=False)
+            st.pyplot(bbox_inches='tight')
+        except Exception as e:
+            st.warning(f"SHAP explanation skipped: {e}")
+else:
+    st.info("👆 Upload a dataset (CSV) to begin.")
+
+
