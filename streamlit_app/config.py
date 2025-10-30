@@ -1,21 +1,12 @@
-"""
-
-Config file for Streamlit App
-
-"""
-
 from member import Member
 
-
-TITLE = "My Awesome App"
+TITLE = "London Fire Brigade Analysis Dashboard"
+PROMOTION = "Data Science Project 2023"
 
 TEAM_MEMBERS = [
     Member(
-        name="John Doe",
-        linkedin_url="https://www.linkedin.com/in/charlessuttonprofile/",
-        github_url="https://github.com/charlessutton",
-    ),
-    Member("Jane Doe"),
+        name="Your Name",
+        linkedin_url="https://www.linkedin.com/in/yourprofile/",
+        github_url="https://github.com/yourgithub",
+    )
 ]
-
-PROMOTION = "Promotion Bootcamp Data Scientist - April 2021"
