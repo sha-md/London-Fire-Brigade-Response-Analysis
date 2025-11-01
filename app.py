@@ -15,7 +15,8 @@ import time
 # ===========================
 st.set_page_config(page_title="London Fire Brigade Response Analysis", layout="wide")
 
-SAMPLE_SIZE = 30000  # sample rows for performance
+st.title("🚒 London Fire Brigade — Response Time Analysis")
+
 DATA_URLS = {
     "mobilisation": "https://github.com/sha-md/London-Fire-Brigade-Response-Analysis/releases/download/v1.0/LFB.Mobilisation.data.from.January.2009.csv.gz",
     "incident": "https://github.com/sha-md/London-Fire-Brigade-Response-Analysis/releases/download/v1.0/LFB.Incident.data.csv.gz",
@@ -23,12 +24,22 @@ DATA_URLS = {
 }
 
 # ===========================
+# Sidebar Controls
+# ===========================
+st.sidebar.header("📂 Data Loading Options")
+
+load_full = st.sidebar.checkbox("Load full dataset (may take longer)", value=False)
+SAMPLE_SIZE = None if load_full else 100_000  # load full if checkbox checked
+
+st.sidebar.info("Auto-loading compressed CSVs from GitHub Release (v1.0)...")
+
+# ===========================
 # Helper Functions
 # ===========================
 @st.cache_data(show_spinner=False)
-def load_csv(url, nrows=SAMPLE_SIZE):
-    """Load a CSV or gzipped CSV safely from GitHub."""
-    return pd.read_csv(url, compression="infer", low_memory=False, nrows=nrows)
+def load_csv(url, nrows=SAMPLE_SIZE, usecols=None):
+    """Load CSV or gzipped CSV from GitHub with optional column selection."""
+    return pd.read_csv(url, compression="infer", low_memory=False, nrows=nrows, usecols=usecols)
 
 def progress_load():
     """Display progress bar while loading all data."""
@@ -76,7 +87,7 @@ def compute_response_times(mob_df, inc_df):
 
     # Merge with Incident data safely
     if "IncidentNumber" in df.columns and "IncidentNumber" in inc_df.columns:
-        merge_cols = [col for col in ["IncidentNumber", "IncGeo_BoroughName", "Latitude", "Longitude", "CalYear", "HourOfCall"] if col in inc_df.columns]
+        merge_cols = [c for c in ["IncidentNumber", "IncGeo_BoroughName", "Latitude", "Longitude", "CalYear", "HourOfCall"] if c in inc_df.columns]
         merged = df.merge(inc_df[merge_cols], on="IncidentNumber", how="left")
     else:
         merged = df.copy()
@@ -103,7 +114,6 @@ def compute_response_times(mob_df, inc_df):
 
     return merged
 
-
 def human_time(seconds):
     if pd.isna(seconds):
         return "NA"
@@ -113,9 +123,6 @@ def human_time(seconds):
 # ===========================
 # Load Data
 # ===========================
-st.sidebar.header("📂 Data Loading")
-st.sidebar.info("Auto-loading compressed CSVs from GitHub Release (v1.0)...")
-
 mob_df, inc_df, clean_df = progress_load()
 
 if mob_df.empty or inc_df.empty or clean_df.empty:
@@ -123,9 +130,9 @@ if mob_df.empty or inc_df.empty or clean_df.empty:
     st.stop()
 
 st.sidebar.success("✅ Datasets loaded successfully!")
-st.sidebar.write(f"Mobilisation rows (sample): {mob_df.shape[0]:,}")
-st.sidebar.write(f"Incident rows (sample): {inc_df.shape[0]:,}")
-st.sidebar.write(f"Cleaned rows (sample): {clean_df.shape[0]:,}")
+st.sidebar.write(f"Mobilisation rows: {mob_df.shape[0]:,}")
+st.sidebar.write(f"Incident rows: {inc_df.shape[0]:,}")
+st.sidebar.write(f"Cleaned rows: {clean_df.shape[0]:,}")
 
 with st.spinner("Processing datasets..."):
     merged = compute_response_times(mob_df, inc_df)
@@ -133,12 +140,11 @@ with st.spinner("Processing datasets..."):
 borough_col = "IncGeo_BoroughName" if "IncGeo_BoroughName" in merged.columns else None
 
 # ===========================
-# Dashboard Tabs
+# Tabs Layout
 # ===========================
-st.title("🚒 London Fire Brigade – Response Time Analysis")
 tab1, tab2 = st.tabs(["📊 Dashboard", "🤖 Predictor"])
 
-# ---- TAB 1: Dashboard ----
+# ---- TAB 1 ----
 with tab1:
     st.header("📈 Interactive Analysis")
 
@@ -162,6 +168,7 @@ with tab1:
     k2.metric("Avg Travel", human_time(dfv["TravelTimeSeconds"].mean()))
     k3.metric("Avg Response", human_time(dfv["response_seconds"].mean()))
 
+    # Charts
     st.markdown("---")
     if borough_col:
         st.subheader("Response Time by Borough")
@@ -175,27 +182,24 @@ with tab1:
     fig2 = px.line(trend, x="month", y="response_seconds", title="Average Monthly Response Time")
     st.plotly_chart(fig2, use_container_width=True)
 
-st.subheader("📍 Map of Incidents (sample)")
+    # Safe map
+    st.subheader("📍 Map of Incidents (sample)")
+    possible_lat = ["Latitude", "Incident_Latitude", "Incident_Lat", "lat"]
+    possible_lon = ["Longitude", "Incident_Longitude", "Incident_Lon", "lon"]
+    lat_col = next((c for c in possible_lat if c in dfv.columns), None)
+    lon_col = next((c for c in possible_lon if c in dfv.columns), None)
 
-# Detect and rename latitude/longitude columns
-possible_lat_cols = ["Latitude", "Incident_Latitude", "Incident_Lat", "lat"]
-possible_lon_cols = ["Longitude", "Incident_Longitude", "Incident_Lon", "lon"]
-
-lat_col = next((c for c in possible_lat_cols if c in dfv.columns), None)
-lon_col = next((c for c in possible_lon_cols if c in dfv.columns), None)
-
-if lat_col and lon_col:
-    smp = dfv.dropna(subset=[lat_col, lon_col]).sample(min(1500, len(dfv)), random_state=42)
-    smp = smp.rename(columns={lat_col: "latitude", lon_col: "longitude"})  # normalize for Streamlit
-    st.map(smp[["latitude", "longitude"]])
-else:
-    st.warning("⚠️ Latitude/Longitude columns not found in dataset, skipping map plot.")
-
+    if lat_col and lon_col:
+        smp = dfv.dropna(subset=[lat_col, lon_col]).sample(min(1500, len(dfv)), random_state=42)
+        smp = smp.rename(columns={lat_col: "latitude", lon_col: "longitude"})
+        st.map(smp[["latitude", "longitude"]])
+    else:
+        st.warning("⚠️ Latitude/Longitude columns not found, skipping map plot.")
 
     st.markdown("---")
     st.dataframe(dfv.head(200))
 
-# ---- TAB 2: Predictor ----
+# ---- TAB 2 ----
 with tab2:
     st.header("Predict Response Time (Simple Model)")
     if "response_seconds" not in merged or merged["response_seconds"].dropna().empty:
@@ -227,17 +231,24 @@ with tab2:
 
     c1, c2, c3 = st.columns(3)
     hour_in = c1.number_input("Hour of Call", 0, 23, 12)
-    year_in = c2.selectbox("Year", years)
+    year_in = c2.selectbox("Year", sorted(df_model["year"].dropna().unique().astype(int)))
     borough_in = c3.selectbox("Borough", boroughs) if borough_col else None
 
     if st.button("Predict"):
-        inp = pd.DataFrame([{"hour": hour_in, "year": year_in, borough_col: borough_in}])
+        input_data = {"hour": hour_in, "year": year_in}
+        if "PumpOrder" in merged.columns:
+            input_data["PumpOrder"] = merged["PumpOrder"].median()
+        if borough_col:
+            input_data[borough_col] = borough_in
+
+        inp = pd.DataFrame([input_data])
+        for col in X.columns:
+            if col not in inp.columns:
+                inp[col] = None
+
         pred = model.predict(inp)[0]
         st.metric("Predicted Response Time", f"{pred:.1f} sec")
         st.write(f"≈ {human_time(pred)}")
 
 st.sidebar.markdown("---")
-st.sidebar.caption("⚡ Cloud-Optimized Streamlit App | Data: GitHub Releases | Project by sha-md")
-
-
-
+st.sidebar.caption("⚡ Streamlit App | Data from GitHub Releases | Built by sha-md")
