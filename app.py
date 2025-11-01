@@ -62,6 +62,7 @@ def compute_response_times(mob_df, inc_df):
     df = parse_datetime(df, "DateAndTimeMobilised")
     df = parse_datetime(df, "DateAndTimeArrived")
 
+    # Compute response time (seconds)
     if "DateAndTimeMobilised" in df.columns and "DateAndTimeArrived" in df.columns:
         df["response_seconds"] = (df["DateAndTimeArrived"] - df["DateAndTimeMobilised"]).dt.total_seconds()
     else:
@@ -73,28 +74,35 @@ def compute_response_times(mob_df, inc_df):
 
     df.loc[df["response_seconds"] < 0, "response_seconds"] = np.nan
 
+    # Merge with Incident data safely
     if "IncidentNumber" in df.columns and "IncidentNumber" in inc_df.columns:
-        merged = df.merge(
-            inc_df[["IncidentNumber", "IncGeo_BoroughName", "Latitude", "Longitude", "CalYear", "HourOfCall"]],
-            on="IncidentNumber", how="left"
-        )
+        merge_cols = [col for col in ["IncidentNumber", "IncGeo_BoroughName", "Latitude", "Longitude", "CalYear", "HourOfCall"] if col in inc_df.columns]
+        merged = df.merge(inc_df[merge_cols], on="IncidentNumber", how="left")
     else:
-        merged = df
+        merged = df.copy()
 
-    merged["year"] = merged["CalYear"].fillna(
-        merged["DateAndTimeMobilised"].dt.year if "DateAndTimeMobilised" in merged.columns else np.nan
-    )
-    merged["hour"] = (
-        merged["DateAndTimeMobilised"].dt.hour
-        if "DateAndTimeMobilised" in merged.columns
-        else merged.get("HourOfCall")
-    )
-    merged["month"] = (
-        merged["DateAndTimeMobilised"].dt.to_period("M").astype(str)
-        if "DateAndTimeMobilised" in merged.columns
-        else np.nan
-    )
+    # Add fallback year/hour/month columns
+    if "CalYear" in merged.columns:
+        merged["year"] = merged["CalYear"]
+    elif "DateAndTimeMobilised" in merged.columns:
+        merged["year"] = merged["DateAndTimeMobilised"].dt.year
+    else:
+        merged["year"] = np.nan
+
+    if "HourOfCall" in merged.columns:
+        merged["hour"] = merged["HourOfCall"]
+    elif "DateAndTimeMobilised" in merged.columns:
+        merged["hour"] = merged["DateAndTimeMobilised"].dt.hour
+    else:
+        merged["hour"] = np.nan
+
+    if "DateAndTimeMobilised" in merged.columns:
+        merged["month"] = merged["DateAndTimeMobilised"].dt.to_period("M").astype(str)
+    else:
+        merged["month"] = np.nan
+
     return merged
+
 
 def human_time(seconds):
     if pd.isna(seconds):
@@ -220,3 +228,4 @@ with tab2:
 
 st.sidebar.markdown("---")
 st.sidebar.caption("⚡ Cloud-Optimized Streamlit App | Data: GitHub Releases | Project by sha-md")
+
