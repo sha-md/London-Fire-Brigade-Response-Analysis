@@ -29,7 +29,7 @@ DATA_URLS = {
 st.sidebar.header("📂 Data Loading Options")
 
 load_full = st.sidebar.checkbox("Load full dataset (may take longer)", value=False)
-SAMPLE_SIZE = None if load_full else 100_000  # load full if checkbox checked
+SAMPLE_SIZE = None if load_full else 200_000  # load more rows for more years
 
 st.sidebar.info("Auto-loading compressed CSVs from GitHub Release (v1.0)...")
 
@@ -73,7 +73,6 @@ def compute_response_times(mob_df, inc_df):
     df = parse_datetime(df, "DateAndTimeMobilised")
     df = parse_datetime(df, "DateAndTimeArrived")
 
-    # Compute response time (seconds)
     if "DateAndTimeMobilised" in df.columns and "DateAndTimeArrived" in df.columns:
         df["response_seconds"] = (df["DateAndTimeArrived"] - df["DateAndTimeMobilised"]).dt.total_seconds()
     else:
@@ -85,14 +84,13 @@ def compute_response_times(mob_df, inc_df):
 
     df.loc[df["response_seconds"] < 0, "response_seconds"] = np.nan
 
-    # Merge with Incident data safely
     if "IncidentNumber" in df.columns and "IncidentNumber" in inc_df.columns:
         merge_cols = [c for c in ["IncidentNumber", "IncGeo_BoroughName", "Latitude", "Longitude", "CalYear", "HourOfCall"] if c in inc_df.columns]
         merged = df.merge(inc_df[merge_cols], on="IncidentNumber", how="left")
     else:
         merged = df.copy()
 
-    # Add fallback year/hour/month columns
+    # Add fallback year/hour/month
     if "CalYear" in merged.columns:
         merged["year"] = merged["CalYear"]
     elif "DateAndTimeMobilised" in merged.columns:
@@ -126,13 +124,10 @@ def human_time(seconds):
 mob_df, inc_df, clean_df = progress_load()
 
 if mob_df.empty or inc_df.empty or clean_df.empty:
-    st.error("❌ One or more datasets failed to load. Check release URLs.")
+    st.error("❌ One or more datasets failed to load.")
     st.stop()
 
 st.sidebar.success("✅ Datasets loaded successfully!")
-st.sidebar.write(f"Mobilisation rows: {mob_df.shape[0]:,}")
-st.sidebar.write(f"Incident rows: {inc_df.shape[0]:,}")
-st.sidebar.write(f"Cleaned rows: {clean_df.shape[0]:,}")
 
 with st.spinner("Processing datasets..."):
     merged = compute_response_times(mob_df, inc_df)
@@ -148,7 +143,7 @@ tab1, tab2 = st.tabs(["📊 Dashboard", "🤖 Predictor"])
 with tab1:
     st.header("📈 Interactive Analysis")
 
-    years = sorted(merged["year"].dropna().unique().astype(int)) if "year" in merged.columns else []
+    years = sorted(merged["year"].dropna().unique().astype(int))
     boroughs = sorted(merged[borough_col].dropna().unique()) if borough_col else []
 
     c1, c2 = st.columns(2)
@@ -173,8 +168,7 @@ with tab1:
     if borough_col:
         st.subheader("Response Time by Borough")
         agg = dfv.groupby(borough_col)["response_seconds"].mean().reset_index().sort_values("response_seconds")
-        fig = px.bar(agg, x="response_seconds", y=borough_col, orientation="h",
-                     title="Average Response Time (seconds) by Borough")
+        fig = px.bar(agg, x="response_seconds", y=borough_col, orientation="h", title="Average Response Time (seconds) by Borough")
         st.plotly_chart(fig, use_container_width=True)
 
     st.subheader("Trend Over Time")
@@ -182,7 +176,7 @@ with tab1:
     fig2 = px.line(trend, x="month", y="response_seconds", title="Average Monthly Response Time")
     st.plotly_chart(fig2, use_container_width=True)
 
-    # Safe map
+    # Map
     st.subheader("📍 Map of Incidents (sample)")
     possible_lat = ["Latitude", "Incident_Latitude", "Incident_Lat", "lat"]
     possible_lon = ["Longitude", "Incident_Longitude", "Incident_Lon", "lon"]
@@ -196,22 +190,15 @@ with tab1:
     else:
         st.warning("⚠️ Latitude/Longitude columns not found, skipping map plot.")
 
-    st.markdown("---")
-    st.dataframe(dfv.head(200))
-
 # ---- TAB 2 ----
 with tab2:
     st.header("Predict Response Time (Simple Model)")
-    if "response_seconds" not in merged or merged["response_seconds"].dropna().empty:
-        st.warning("⚠️ Not enough data for training.")
-        st.stop()
-
+    df_model = merged.dropna(subset=["response_seconds", "year", "hour"])
     features = ["hour", "year"]
     if "PumpOrder" in merged.columns:
         features.append("PumpOrder")
     cat_features = [borough_col] if borough_col else []
 
-    df_model = merged.dropna(subset=features + ["response_seconds"])
     X = df_model[features + cat_features]
     y = df_model["response_seconds"]
 
@@ -219,7 +206,6 @@ with tab2:
         ("num", "passthrough", features),
         ("cat", OneHotEncoder(handle_unknown="ignore"), cat_features)
     ])
-
     model = Pipeline([
         ("pre", preprocessor),
         ("rf", RandomForestRegressor(n_estimators=80, random_state=42))
@@ -231,8 +217,11 @@ with tab2:
 
     c1, c2, c3 = st.columns(3)
     hour_in = c1.number_input("Hour of Call", 0, 23, 12)
-    year_in = c2.selectbox("Year", sorted(df_model["year"].dropna().unique().astype(int)))
-    borough_in = c3.selectbox("Borough", boroughs) if borough_col else None
+    # include future years up to 2030
+    all_years = sorted(df_model["year"].dropna().unique().astype(int))
+    extended_years = all_years + [y for y in range(max(all_years) + 1, 2031)]
+    year_in = c2.selectbox("Year", extended_years)
+    borough_in = c3.selectbox("Borough", sorted(df_model[borough_col].dropna().unique())) if borough_col else None
 
     if st.button("Predict"):
         input_data = {"hour": hour_in, "year": year_in}
@@ -247,8 +236,19 @@ with tab2:
                 inp[col] = None
 
         pred = model.predict(inp)[0]
+        readable = human_time(pred)
         st.metric("Predicted Response Time", f"{pred:.1f} sec")
-        st.write(f"≈ {human_time(pred)}")
+        st.write(f"≈ {readable}")
+
+        # Interpretation box
+        st.markdown(f"""
+        💡 **Interpretation:**
+        For an incident in **{borough_in}** at **{hour_in}:00 hours** during **{year_in}**,  
+        the estimated average fire brigade arrival time is about **{readable}**.
+        """)
+
+        if year_in > max(all_years):
+            st.info(f"📈 Note: {year_in} is a future year. The prediction extrapolates using past patterns (up to {max(all_years)}).")
 
 st.sidebar.markdown("---")
-st.sidebar.caption("⚡ Streamlit App | Data from GitHub Releases | Built by sha-md")
+st.sidebar.caption("⚡ Streamlit App | Data: GitHub Releases | Built by sha-md")
