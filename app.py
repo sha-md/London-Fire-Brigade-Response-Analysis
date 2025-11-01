@@ -215,7 +215,7 @@ with tab2:
 
     with st.spinner("Training model (cached after first run)..."):
         model = train_model(X, y, features, cat_features)
-    st.success("✅ Model cached and ready for instant predictions!")
+    
 
     c1, c2, c3 = st.columns(3)
     hour_in = c1.number_input("Hour of Call", 0, 23, 12)
@@ -292,5 +292,6 @@ if st.button("Predict"):
 
 st.sidebar.markdown("---")
 st.sidebar.caption("📊 Built by shabnam")
+
 
 
