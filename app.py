@@ -224,7 +224,7 @@ with tab2:
     year_in = c2.selectbox("Year", future_years)
     borough_in = c3.selectbox("Borough", sorted(df_model[borough_col].dropna().unique())) if borough_col else None
 
-    if st.button("Predict"):
+if st.button("Predict"):
     # Build single-row input
     inp = pd.DataFrame([{"hour": hour_in, "year": year_in, borough_col: borough_in}])
 
@@ -292,4 +292,5 @@ with tab2:
 
 st.sidebar.markdown("---")
 st.sidebar.caption("📊 Built by shabnam")
+
 
