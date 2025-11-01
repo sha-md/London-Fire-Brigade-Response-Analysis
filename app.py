@@ -175,7 +175,7 @@ with tab1:
     fig2 = px.line(trend, x="month", y="response_seconds", title="Average Monthly Response Time")
     st.plotly_chart(fig2, use_container_width=True)
 
-   st.subheader("📍 Map of Incidents (sample)")
+st.subheader("📍 Map of Incidents (sample)")
 
 # Detect and rename latitude/longitude columns
 possible_lat_cols = ["Latitude", "Incident_Latitude", "Incident_Lat", "lat"]
@@ -238,5 +238,6 @@ with tab2:
 
 st.sidebar.markdown("---")
 st.sidebar.caption("⚡ Cloud-Optimized Streamlit App | Data: GitHub Releases | Project by sha-md")
+
 
 
