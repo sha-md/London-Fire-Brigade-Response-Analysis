@@ -31,12 +31,13 @@ load_full = st.sidebar.checkbox("Load full dataset (slow)", value=False)
 # HELPER FUNCTIONS
 # ===========================
 @st.cache_data(show_spinner=False)
-def load_csv_random(url, sample_ratio=0.05):
+def load_csv_random(url, sample_ratio=0.05, usecols=None):
     """Randomly sample rows from large CSV files across all years."""
     return pd.read_csv(
         url,
         compression="infer",
         low_memory=False,
+        usecols=usecols,
         skiprows=lambda i: i > 0 and random.random() > sample_ratio
     )
 
@@ -90,8 +91,53 @@ def human_time(seconds):
     return f"{m}m {s}s"
 
 # ===========================
+# CACHING FOR SPEED
+# ===========================
+@st.cache_resource(show_spinner=False)
+def train_model(X, y, features, cat_features):
+    """Train and cache model so it's reused."""
+    preprocessor = ColumnTransformer([
+        ("num", "passthrough", features),
+        ("cat", OneHotEncoder(handle_unknown="ignore"), cat_features)
+    ])
+    model = Pipeline([
+        ("pre", preprocessor),
+        ("rf", RandomForestRegressor(n_estimators=60, max_depth=8, random_state=42, n_jobs=-1))
+    ])
+    model.fit(X, y)
+    return model
+
+@st.cache_data(show_spinner=False)
+def generate_forecast(model, X_columns, borough_col, df_model, all_years):
+    """Generate yearly forecast (cached)."""
+    years_future = list(range(min(all_years), 2031))
+    sample_hour = 12
+    boroughs_list = sorted(df_model[borough_col].dropna().unique()) if borough_col else [None]
+
+    preds = []
+    for yr in years_future:
+        year_vals = []
+        for br in boroughs_list:
+            test_df = pd.DataFrame([{"hour": sample_hour, "year": yr, borough_col: br}])
+            for col in X_columns:
+                if col not in test_df.columns:
+                    test_df[col] = None
+            try:
+                year_vals.append(model.predict(test_df)[0])
+            except Exception:
+                continue
+        if year_vals:
+            preds.append({"year": yr, "predicted_response": np.mean(year_vals)})
+    return pd.DataFrame(preds)
+
+# ===========================
 # LOAD DATA
 # ===========================
+usecols = [
+    "IncidentNumber", "CalYear", "HourOfCall", "IncGeo_BoroughName",
+    "TravelTimeSeconds", "AttendanceTimeSeconds", "DateAndTimeMobilised", "DateAndTimeArrived"
+]
+
 with st.spinner("📦 Loading datasets..."):
     mob_df = load_csv_random(DATA_URLS["mobilisation"], sample_ratio=0.05 if not load_full else 1)
     inc_df = load_csv_random(DATA_URLS["incident"], sample_ratio=0.05 if not load_full else 1)
@@ -123,7 +169,6 @@ with tab1:
     if sel_boroughs:
         dfv = dfv[dfv[borough_col].isin(sel_boroughs)]
 
-    # KPIs
     st.markdown("### 🚒 Key Response Metrics")
     k1, k2, k3 = st.columns(3)
     k1.metric("⏱ Avg Turnout", human_time(dfv["TurnoutTimeSeconds"].mean()))
@@ -168,17 +213,9 @@ with tab2:
     X = df_model[features + cat_features]
     y = df_model["response_seconds"]
 
-    preprocessor = ColumnTransformer([
-        ("num", "passthrough", features),
-        ("cat", OneHotEncoder(handle_unknown="ignore"), cat_features)
-    ])
-    model = Pipeline([
-        ("pre", preprocessor),
-        ("rf", RandomForestRegressor(n_estimators=80, random_state=42))
-    ])
-
-    model.fit(X, y)
-    st.success("✅ Model trained on sample data!")
+    with st.spinner("Training model (cached after first run)..."):
+        model = train_model(X, y, features, cat_features)
+    st.success("✅ Model cached and ready for instant predictions!")
 
     c1, c2, c3 = st.columns(3)
     hour_in = c1.number_input("Hour of Call", 0, 23, 12)
@@ -201,31 +238,11 @@ with tab2:
         if year_in > max(all_years):
             st.info(f"📈 {year_in} is a future year — forecast estimated using historical trends.")
 
-        # --- Forecasted Trend (2009–2030) ---
+        # --- Forecasted Trend ---
         st.markdown("---")
         st.subheader("📈 Forecasted Trend (2024–2030)")
 
-        years_future = list(range(min(all_years), 2031))
-        sample_hour = 12
-        boroughs_list = sorted(df_model[borough_col].dropna().unique()) if borough_col else [None]
-
-        predictions = []
-        for yr in years_future:
-            year_preds = []
-            for br in boroughs_list:
-                test_df = pd.DataFrame([{"hour": sample_hour, "year": yr, borough_col: br}])
-                for col in X.columns:
-                    if col not in test_df.columns:
-                        test_df[col] = None
-                try:
-                    pred_val = model.predict(test_df)[0]
-                    year_preds.append(pred_val)
-                except Exception:
-                    continue
-            if year_preds:
-                predictions.append({"year": yr, "predicted_response": np.mean(year_preds)})
-
-        forecast_df = pd.DataFrame(predictions)
+        forecast_df = generate_forecast(model, X.columns, borough_col, df_model, all_years)
         cutoff_year = max(all_years)
         forecast_df["type"] = np.where(forecast_df["year"] <= cutoff_year, "Actual", "Forecast")
 
