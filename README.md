@@ -6,13 +6,15 @@ Originally developed as a **group project** at *DataScientest (Germany)*, later 
 ---
 
 ##  Table of Contents
-- [ Project Background](#-project-background)
-- [ Streamlit Web App](#-streamlit-web-app)
-- [ Key Features](#-key-features)
-- [ Main Insights](#-main-insights)
-- [ Machine Learning Overview](#-machine-learning-overview)
-- [ Learnings](#-learnings)
-- [ Author](#-author)
+- [Project Background](#project-background)
+- [Business Objective](#business-objective)
+- [Streamlit Web App](#streamlit-web-app)
+- [Key Features](#key-features)
+- [Main Insights](#main-insights)
+- [Machine Learning Overview](#machine-learning-overview)
+- [Learnings](#learnings)
+- [Repository Structure](#repository-structure)
+- [Author](#author)
 
 ---
 
@@ -22,6 +24,20 @@ This project explores how fast the **London Fire Brigade** responds to incidents
 It applies **data cleaning, feature engineering, and ML modeling** to estimate and visualize emergency response times — and even forecast trends up to **2030**.
 
 ---
+
+##  Business Objective
+
+The goal of this project is to help the **London Fire Brigade (LFB)** gain actionable insights into its emergency response operations and identify factors causing delays.  
+
+By analyzing historical incident and mobilisation data, the project aims to:  
+- Understand how **response times vary** by borough, time of day, and incident type  
+- Predict **expected arrival times** for new emergency calls  
+- Forecast **future trends** in response performance (up to 2030)  
+- Support **strategic resource planning** and station-level optimization  
+
+From a business standpoint, improving response time not only enhances **public safety** and **operational efficiency**, but also reduces **property damage** and strengthens community trust in emergency services.
+
+--
 
 ##  Streamlit Web App
 
@@ -69,7 +85,8 @@ It applies **data cleaning, feature engineering, and ML modeling** to estimate a
 
 ##  Author
 
-**Shabnam B. Mahammad**  
-
+**Author:** [SHABNAM B MAHAMMAD]  
+ shabnam71.md@gmail.com
+🔗 [LinkedIn](www.linkedin.com/in/shabnam-b-mahammad-377520272) 
 
 > “Analyzing the past to predict the response — one dataset at a time.” 🚒
