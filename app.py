@@ -225,12 +225,36 @@ with tab2:
     borough_in = c3.selectbox("Borough", sorted(df_model[borough_col].dropna().unique())) if borough_col else None
 
     if st.button("Predict"):
-        inp = pd.DataFrame([{"hour": hour_in, "year": year_in, borough_col: borough_in}])
-        for col in X.columns:
-            if col not in inp.columns:
-                inp[col] = None
-        pred = model.predict(inp)[0]
+    # Build single-row input
+    inp = pd.DataFrame([{"hour": hour_in, "year": year_in, borough_col: borough_in}])
+
+    # Ensure all columns exist in same order and no NaN for numeric fields
+    for col in X.columns:
+        if col not in inp.columns:
+            inp[col] = np.nan
+    inp = inp[X.columns].copy()
+
+    # Fill missing numeric with median, categorical with "Unknown"
+    for col in inp.columns:
+        if inp[col].dtype.kind in "biufc":
+            inp[col] = inp[col].fillna(np.nanmedian(X[col].dropna()))
+        else:
+            inp[col] = inp[col].fillna("Unknown")
+
+    # Predict safely
+    try:
+        pred = float(model.predict(inp)[0])
         readable = human_time(pred)
+        st.metric("Predicted Response Time", f"{pred:.1f} sec", f"≈ {readable}")
+        st.markdown(
+            f"💡 **Interpretation:** For an incident in **{borough_in}** at **{hour_in}:00** during **{year_in}**, "
+            f"the estimated fire crew arrival time is about **{readable}**."
+        )
+        if year_in > max(all_years):
+            st.info(f"📈 {year_in} is a future year — forecast estimated using historical trends.")
+    except Exception as e:
+        st.error(f"⚠️ Prediction failed: {e}")
+
 
         st.metric("Predicted Response Time", f"{pred:.1f} sec", f"≈ {readable}")
         st.markdown(f"💡 **Interpretation:** For an incident in **{borough_in}** at **{hour_in}:00** during **{year_in}**, "
@@ -268,3 +292,4 @@ with tab2:
 
 st.sidebar.markdown("---")
 st.sidebar.caption("📊 Built by shabnam")
+
