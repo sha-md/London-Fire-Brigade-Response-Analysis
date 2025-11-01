@@ -2,8 +2,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import io
-import os
 from datetime import datetime
 import joblib
 from sklearn.ensemble import RandomForestRegressor
@@ -13,452 +11,215 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 import pydeck as pdk
 import plotly.express as px
+import os
 
-st.set_page_config(page_title="London Fire Brigade — Response Analysis", layout="wide")
+st.set_page_config(page_title="London Fire Brigade Response Analysis", layout="wide")
 
-########################################
-# Helpers
-########################################
+# =======================
+# Data Loading Functions
+# =======================
 @st.cache_data(show_spinner=False)
-def try_read_csv(path_or_buffer):
+def try_read_csv(url):
     try:
-        return pd.read_csv(path_or_buffer)
-    except Exception:
-        try:
-            # try with encoding fallback
-            return pd.read_csv(path_or_buffer, encoding='latin1')
-        except Exception as e:
-            st.error(f"Failed to read CSV: {e}")
-            return None
+        return pd.read_csv(url)
+    except Exception as e:
+        st.error(f"Failed to load {url}: {e}")
+        return None
 
-def parse_datetime_columns(df, colnames):
-    for c in colnames:
-        if c in df.columns:
-            # try several common formats
-            try:
-                df[c+'_dt'] = pd.to_datetime(df[c], infer_datetime_format=True, errors='coerce', dayfirst=True)
-            except Exception:
-                df[c+'_dt'] = pd.to_datetime(df[c], errors='coerce')
+@st.cache_data(show_spinner=True)
+def load_datasets():
+    sample_paths = {
+        'mobilisation': "https://github.com/sha-md/London-Fire-Brigade-Response-Analysis/releases/download/v1.0/LFB.Mobilisation.data.from.January.2009.csv",
+        'incident': "https://github.com/sha-md/London-Fire-Brigade-Response-Analysis/releases/download/v1.0/LFB.Incident.data.csv",
+        'cleaned': "https://github.com/sha-md/London-Fire-Brigade-Response-Analysis/releases/download/v1.0/cleaned_df.csv"
+    }
+
+    mob_df = try_read_csv(sample_paths['mobilisation'])
+    inc_df = try_read_csv(sample_paths['incident'])
+    clean_df = try_read_csv(sample_paths['cleaned'])
+    return mob_df, inc_df, clean_df
+
+# =======================
+# Helper Functions
+# =======================
+def parse_datetime(df, col):
+    if col in df.columns:
+        try:
+            df[col] = pd.to_datetime(df[col], errors='coerce', infer_datetime_format=True, dayfirst=True)
+        except Exception:
+            df[col] = pd.to_datetime(df[col], errors='coerce')
     return df
 
-def compute_response_times(mob_df, incident_df, cleaned_df):
+def compute_response_times(mob_df, inc_df):
     df = mob_df.copy()
-    # parse relevant columns
-    df = parse_datetime_columns(df, ['DateAndTimeMobilised', 'DateAndTimeMobile', 'DateAndTimeArrived'])
-    # compute mobilised->arrived
-    if 'DateAndTimeMobilised_dt' in df.columns and 'DateAndTimeArrived_dt' in df.columns:
-        df['response_seconds'] = (df['DateAndTimeArrived_dt'] - df['DateAndTimeMobilised_dt']).dt.total_seconds()
+    df = parse_datetime(df, 'DateAndTimeMobilised')
+    df = parse_datetime(df, 'DateAndTimeArrived')
+
+    if 'DateAndTimeMobilised' in df.columns and 'DateAndTimeArrived' in df.columns:
+        df['response_seconds'] = (df['DateAndTimeArrived'] - df['DateAndTimeMobilised']).dt.total_seconds()
     else:
         df['response_seconds'] = np.nan
 
-    # fallback to TravelTimeSeconds or AttendanceTimeSeconds if response missing
     if 'TravelTimeSeconds' in df.columns:
         df['response_seconds'] = df['response_seconds'].fillna(df['TravelTimeSeconds'])
     if 'AttendanceTimeSeconds' in df.columns:
         df['response_seconds'] = df['response_seconds'].fillna(df['AttendanceTimeSeconds'])
 
-    # drop impossible values
     df.loc[df['response_seconds'] < 0, 'response_seconds'] = np.nan
 
-    # combine with incident-level info where possible (join on IncidentNumber)
-    if 'IncidentNumber' in df.columns and 'IncidentNumber' in incident_df.columns:
-        merged = df.merge(incident_df[['IncidentNumber','IncGeo_BoroughName','Latitude','Longitude','DateOfCall','TimeOfCall']],
-                          on='IncidentNumber', how='left', suffixes=('','_inc'))
+    if 'IncidentNumber' in df.columns and 'IncidentNumber' in inc_df.columns:
+        merged = df.merge(
+            inc_df[['IncidentNumber', 'IncGeo_BoroughName', 'Latitude', 'Longitude', 'CalYear', 'HourOfCall']],
+            on='IncidentNumber', how='left'
+        )
     else:
         merged = df
 
-    # try to add cleaned_df info too (if has borough etc.)
-    if 'IncidentNumber' in merged.columns and 'IncidentNumber' in cleaned_df.columns:
-        merged = merged.merge(cleaned_df[['IncidentNumber','IncGeo_BoroughName','Incident_Latitude','Incident_Longitude']],
-                              on='IncidentNumber', how='left', suffixes=('','_clean'))
+    merged['CalYear'] = merged['CalYear'].fillna(merged['DateAndTimeMobilised'].dt.year if 'DateAndTimeMobilised' in merged.columns else np.nan)
     return merged
 
-def human_seconds(s):
-    if pd.isna(s):
+def human_time(seconds):
+    if pd.isna(seconds):
         return "NA"
-    m = int(s // 60)
-    sec = int(s % 60)
-    return f"{m}m {sec}s"
+    m = int(seconds // 60)
+    s = int(seconds % 60)
+    return f"{m}m {s}s"
 
-########################################
-# UI: sidebar - data loading
-########################################
-st.sidebar.header("Data source / files")
-st.sidebar.write("Upload your CSVs or let the app attempt to load sample files from GitHub (raw URLs).")
-use_github = st.sidebar.checkbox("Try auto-load from GitHub (sha-md repo)", value=True)
+# =======================
+# Load Data
+# =======================
+st.sidebar.header("📂 Data Loading")
+st.sidebar.info("Files auto-loaded from GitHub Releases (v1.0).")
+mob_df, inc_df, clean_df = load_datasets()
 
-uploaded_mob = st.sidebar.file_uploader("Mobilisation CSV (E LFB Mobilisation data)", type=['csv'])
-uploaded_inc = st.sidebar.file_uploader("Incident CSV (E LFB Incident data)", type=['csv'])
-uploaded_clean = st.sidebar.file_uploader("cleaned_df.csv (cleaned geography/cats)", type=['csv'])
-
-if use_github and not (uploaded_mob or uploaded_inc or uploaded_clean):
-    st.sidebar.write("Attempting to load from GitHub (raw). If your filenames/path differ, upload manually.")
-    base_raw = "https://raw.githubusercontent.com/sha-md/London-Fire-Brigade-Response-Analysis/main/"
-    sample_paths = {
-        'mobilisation': base_raw + "E_LFB_Mobilisation_data.csv",
-        'incident': base_raw + "E_LFB_Incident_data.csv",
-        'cleaned': base_raw + "cleaned_df.csv"
-    }
-else:
-    sample_paths = {}
-
-########################################
-# Load data (uploader or github)
-########################################
-@st.cache_data(show_spinner=True)
-def load_datasets(mob_stream, inc_stream, clean_stream, sample_paths):
-    # mobilisation
-    if mob_stream is not None:
-        mob_df = try_read_csv(mob_stream)
-    elif 'mobilisation' in sample_paths:
-        mob_df = try_read_csv(sample_paths['mobilisation'])
-    else:
-        mob_df = None
-
-    if inc_stream is not None:
-        inc_df = try_read_csv(inc_stream)
-    elif 'incident' in sample_paths:
-        inc_df = try_read_csv(sample_paths['incident'])
-    else:
-        inc_df = None
-
-    if clean_stream is not None:
-        clean_df = try_read_csv(clean_stream)
-    elif 'cleaned' in sample_paths:
-        clean_df = try_read_csv(sample_paths['cleaned'])
-    else:
-        clean_df = None
-
-    return mob_df, inc_df, clean_df
-
-mob_df, inc_df, clean_df = load_datasets(uploaded_mob, uploaded_inc, uploaded_clean, sample_paths)
-
-if mob_df is None:
-    st.warning("Mobilisation dataframe not loaded yet. Upload 'E LFB Mobilisation data' or enable GitHub auto-load.")
+if mob_df is None or inc_df is None or clean_df is None:
+    st.error("❌ Failed to load one or more CSVs. Check your release links or try reloading the page.")
     st.stop()
 
-# show basic info
-st.sidebar.write("Mobilisation rows:", mob_df.shape[0])
-if inc_df is not None:
-    st.sidebar.write("Incident rows:", inc_df.shape[0])
-if clean_df is not None:
-    st.sidebar.write("Cleaned rows:", clean_df.shape[0])
+st.sidebar.success("✅ All datasets loaded successfully!")
+st.sidebar.write(f"Mobilisation rows: {mob_df.shape[0]:,}")
+st.sidebar.write(f"Incident rows: {inc_df.shape[0]:,}")
+st.sidebar.write(f"Cleaned rows: {clean_df.shape[0]:,}")
 
-########################################
-# Preprocess + enrich
-########################################
-with st.spinner("Parsing timestamps and computing response times..."):
-    merged = compute_response_times(mob_df, inc_df if inc_df is not None else pd.DataFrame(), clean_df if clean_df is not None else pd.DataFrame())
+# =======================
+# Merge & Preprocess
+# =======================
+with st.spinner("Processing and merging data..."):
+    merged = compute_response_times(mob_df, inc_df)
 
-# derive more columns
-if 'DateAndTimeMobilised_dt' in merged.columns:
-    merged['mobilised_date'] = merged['DateAndTimeMobilised_dt'].dt.date
-    merged['mobilised_year'] = merged['DateAndTimeMobilised_dt'].dt.year
-    merged['mobilised_month'] = merged['DateAndTimeMobilised_dt'].dt.to_period('M').astype(str)
-    merged['mobilised_hour'] = merged['DateAndTimeMobilised_dt'].dt.hour
+if 'DateAndTimeMobilised' in merged.columns:
+    merged['year'] = merged['DateAndTimeMobilised'].dt.year
+    merged['month'] = merged['DateAndTimeMobilised'].dt.to_period('M').astype(str)
+    merged['hour'] = merged['DateAndTimeMobilised'].dt.hour
 else:
-    # fallback to CalYear/HourOfCall where present
-    if 'CalYear' in merged.columns:
-        merged['mobilised_year'] = merged['CalYear']
-    if 'HourOfCall' in merged.columns:
-        merged['mobilised_hour'] = merged['HourOfCall']
+    merged['year'] = merged['CalYear']
+    merged['hour'] = merged['HourOfCall']
 
-# borough column try
-borough_col = None
-for c in ['IncGeo_BoroughName','IncGeo_BoroughName_clean','IncGeo_BoroughName_cleaned','IncGeo_BoroughName_clean']:
-    if c in merged.columns:
-        borough_col = c
-        break
-if borough_col is None:
-    # try alternative
-    if 'DeployedFromStation_Name' in merged.columns:
-        borough_col = 'DeployedFromStation_Name'
+borough_col = 'IncGeo_BoroughName' if 'IncGeo_BoroughName' in merged.columns else None
 
-########################################
-# Main UI layout
-########################################
-st.title("London Fire Brigade — Response Analysis (Hybrid)")
-st.markdown("**Analysis + Prediction** — upload CSVs and explore. This app was generated to run directly (no Jupyter).")
-
+# =======================
+# Streamlit Tabs
+# =======================
+st.title("🚒 London Fire Brigade Response Analysis (Hybrid App)")
 tab1, tab2 = st.tabs(["📊 Analysis Dashboard", "🤖 Predict Response Time"])
 
-########################################
-# Dashboard tab
-########################################
+# =======================
+# Tab 1 — Analysis
+# =======================
 with tab1:
-    st.header("Key metrics & filters")
-    col1, col2 = st.columns([2,1])
+    st.header("Response Time Analysis Dashboard")
+
+    years = sorted(merged['year'].dropna().unique().astype(int))
+    boroughs = sorted(merged[borough_col].dropna().unique()) if borough_col else []
+
+    col1, col2 = st.columns(2)
+    with col1:
+        selected_years = st.multiselect("Select Years", years, default=years[-3:])
     with col2:
-        st.markdown("**Filters**")
-        years = sorted(merged['mobilised_year'].dropna().unique().astype(int).tolist()) if 'mobilised_year' in merged.columns else []
-        sel_year = st.multiselect("Year", options=years, default=years if len(years)<=3 else years[-3:])
-        boroughs = sorted(merged[borough_col].dropna().unique().tolist()) if borough_col and borough_col in merged.columns else []
-        sel_borough = st.multiselect("Borough", options=boroughs, default=None)
-        incident_types = []
-        for col in ['IncidentGroup','SpecialServiceType','StopCodeDescription','PropertyType']:
-            if col in merged.columns:
-                incident_types = merged[col].dropna().unique().tolist()
-                break
-        sel_type = st.selectbox("Incident Type (sample)", options=[None]+(incident_types[:50] if len(incident_types)>0 else []))
+        selected_boroughs = st.multiselect("Select Boroughs", boroughs)
 
-    # apply filters
     df_view = merged.copy()
-    if sel_year:
-        df_view = df_view[df_view['mobilised_year'].isin(sel_year)]
-    if sel_borough and borough_col:
-        df_view = df_view[df_view[borough_col].isin(sel_borough)]
-    if sel_type:
-        # try to find first matching column
-        for col in ['IncidentGroup','SpecialServiceType','StopCodeDescription','PropertyType']:
-            if col in df_view.columns:
-                df_view = df_view[df_view[col]==sel_type]
-                break
+    if selected_years:
+        df_view = df_view[df_view['year'].isin(selected_years)]
+    if selected_boroughs and borough_col:
+        df_view = df_view[df_view[borough_col].isin(selected_boroughs)]
 
-    st.subheader("KPIs")
-    k1, k2, k3, k4 = st.columns(4)
-    mean_turnout = df_view['TurnoutTimeSeconds'].dropna().mean() if 'TurnoutTimeSeconds' in df_view.columns else np.nan
-    mean_travel = df_view['TravelTimeSeconds'].dropna().mean() if 'TravelTimeSeconds' in df_view.columns else np.nan
-    mean_attendance = df_view['AttendanceTimeSeconds'].dropna().mean() if 'AttendanceTimeSeconds' in df_view.columns else np.nan
-    mean_response = df_view['response_seconds'].dropna().mean()
-
-    k1.metric("Mean Turnout", human_seconds(mean_turnout))
-    k2.metric("Mean Travel", human_seconds(mean_travel))
-    k3.metric("Mean Attendance", human_seconds(mean_attendance))
-    k4.metric("Mean Response", human_seconds(mean_response))
+    st.subheader("📈 Key Metrics")
+    k1, k2, k3 = st.columns(3)
+    k1.metric("Average Turnout", human_time(df_view['TurnoutTimeSeconds'].mean()))
+    k2.metric("Average Travel", human_time(df_view['TravelTimeSeconds'].mean()))
+    k3.metric("Average Response", human_time(df_view['response_seconds'].mean()))
 
     st.markdown("---")
-    st.subheader("Borough-level response time")
-    if borough_col and borough_col in df_view.columns:
-        borough_agg = df_view.groupby(borough_col)['response_seconds'].agg(['count','median','mean']).reset_index().sort_values('mean', ascending=False)
-        fig = px.bar(borough_agg.head(25), x='mean', y=borough_col, orientation='h',
-                     labels={'mean':'Mean response (s)', borough_col:'Borough'}, title="Mean response time by borough (top 25)")
+
+    if borough_col:
+        st.subheader("Average Response Time by Borough")
+        borough_agg = df_view.groupby(borough_col)['response_seconds'].mean().reset_index().sort_values('response_seconds')
+        fig = px.bar(borough_agg, y=borough_col, x='response_seconds', orientation='h',
+                     title="Average Response Time (seconds) by Borough")
         st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("Borough column not found. Upload the cleaned_df or Incident CSV containing 'IncGeo_BoroughName'.")
 
-    st.markdown("### Geographic map of incidents (sampled for speed)")
-    # map plotting: use available lat/lon columns
-    lat_col = None
-    lon_col = None
-    for lat_c in ['Incident_Latitude','Incident_Lat','Latitude','IncidentLatitude','Latitude_inc','Incident_Latitude_clean','Incident_Latitude']:
-        if lat_c in df_view.columns:
-            lat_col = lat_c
-            break
-    for lon_c in ['Incident_Longitude','Incident_Long','Longitude','IncidentLongitude','Longitude_inc','Incident_Longitude']:
-        if lon_c in df_view.columns:
-            lon_col = lon_c
-            break
+    st.subheader("Trend Over Time")
+    trend = df_view.groupby('month')['response_seconds'].mean().reset_index()
+    fig2 = px.line(trend, x='month', y='response_seconds', title="Monthly Response Time Trend")
+    st.plotly_chart(fig2, use_container_width=True)
 
-    if lat_col and lon_col:
-        sample = df_view.dropna(subset=[lat_col, lon_col, 'response_seconds']).sample(n=min(20000, len(df_view)), random_state=42) if len(df_view)>1000 else df_view.dropna(subset=[lat_col, lon_col, 'response_seconds'])
-        sample = sample.copy()
-        # normalize response for coloring radius
-        sample['resp_clipped'] = sample['response_seconds'].clip(lower=0, upper=3600)
-        sample['radius'] = (sample['resp_clipped'] / sample['resp_clipped'].max()) * 1000 + 100
-        view = pdk.ViewState(latitude=51.509865, longitude=-0.118092, zoom=9, pitch=0)
-        layer = pdk.Layer(
-            "ScatterplotLayer",
-            data=sample[[lat_col, lon_col, 'resp_clipped']].rename(columns={lat_col:'lat', lon_col:'lon'}).to_dict(orient='records'),
-            get_position='[lon, lat]',
-            get_radius='radius',
-            pickable=True,
-            auto_highlight=True
-        )
-        tooltip = {"html": "<b>Response (s):</b> {resp_clipped}", "style": {"color": "white"}}
-        st.pydeck_chart(pdk.Deck(layers=[layer], initial_view_state=view, tooltip=tooltip))
-    else:
-        st.info("Latitude/Longitude columns not found in uploaded files. Ensure Incident or cleaned file includes coordinates.")
+    st.subheader("Incident Map (Sampled)")
+    lat_col = 'Latitude' if 'Latitude' in df_view.columns else 'Incident_Latitude'
+    lon_col = 'Longitude' if 'Longitude' in df_view.columns else 'Incident_Longitude'
+    if lat_col and lon_col in df_view.columns:
+        sample = df_view.dropna(subset=[lat_col, lon_col]).sample(min(2000, len(df_view)), random_state=42)
+        st.map(sample[[lat_col, lon_col]])
 
     st.markdown("---")
-    st.subheader("Time series: Response time trend")
-    if 'mobilised_month' in df_view.columns and 'response_seconds' in df_view.columns:
-        ts = df_view.groupby('mobilised_month')['response_seconds'].median().reset_index()
-        fig2 = px.line(ts, x='mobilised_month', y='response_seconds', title="Median response time by month")
-        st.plotly_chart(fig2, use_container_width=True)
-    else:
-        st.info("Monthly or response time data missing to create trend plot.")
+    st.dataframe(df_view.head(200))
 
-    st.markdown("### Top stations by mean response time")
-    if 'DeployedFromStation_Name' in df_view.columns:
-        station_agg = df_view.groupby('DeployedFromStation_Name')['response_seconds'].agg(['count','mean']).reset_index().sort_values('mean', ascending=False)
-        st.dataframe(station_agg.head(20).assign(mean=lambda d: d['mean'].round(1)))
-    else:
-        st.info("Station column not available.")
-
-    st.markdown("---")
-    st.subheader("Raw / sample data (for quick view)")
-    st.dataframe(df_view.sample(n=min(200, len(df_view))).reset_index(drop=True))
-
-########################################
-# Prediction tab
-########################################
+# =======================
+# Tab 2 — Prediction
+# =======================
 with tab2:
-    st.header("Predict response time")
-    st.markdown("This tab will try to load a saved scaler + model from `scaler.joblib` and `models/` folder. If not found, you can train a quick baseline model here (takes a minute).")
+    st.header("Predict Response Time")
 
-    # try to load scaler and model from repo (relative paths)
-    loaded_scaler = None
-    loaded_model = None
-    try_paths = [
-        "scaler.joblib",
-        "models/scaler.joblib",
-        "models/scaler.pkl",
-        "models/model.joblib",
-        "models/model.pkl",
-        "models/rf_model.joblib",
-        "models/xgb_model.joblib"
-    ]
-    for p in try_paths:
-        if os.path.exists(p):
-            try:
-                obj = joblib.load(p)
-                # heuristics: scaler vs model
-                if hasattr(obj, 'transform') and loaded_scaler is None:
-                    loaded_scaler = obj
-                else:
-                    loaded_model = obj
-            except Exception:
-                pass
+    if 'response_seconds' not in merged.columns or merged['response_seconds'].dropna().empty:
+        st.warning("No response time data available to train/predict.")
+        st.stop()
 
-    if loaded_scaler is None:
-        # also try joblib load from root scaler.joblib (repo)
-        try:
-            loaded_scaler = joblib.load('scaler.joblib')
-        except Exception:
-            loaded_scaler = None
+    numeric_feats = ['hour', 'year', 'PumpOrder'] if 'PumpOrder' in merged.columns else ['hour', 'year']
+    cat_feats = [borough_col] if borough_col else []
+    df_model = merged.dropna(subset=['response_seconds'] + numeric_feats)
 
-    if loaded_model is None:
-        # try model in models/
-        for fname in os.listdir("models") if os.path.isdir("models") else []:
-            try:
-                obj = joblib.load(os.path.join("models", fname))
-                if not hasattr(obj, 'transform'):
-                    loaded_model = obj
-                    break
-            except Exception:
-                pass
+    X = df_model[numeric_feats + cat_feats]
+    y = df_model['response_seconds']
 
-    if loaded_model is not None:
-        st.success("Loaded pre-trained model from repo.")
-    else:
-        st.info("No pre-trained model found in repo.")
+    preprocessor = ColumnTransformer([
+        ('num', 'passthrough', numeric_feats),
+        ('cat', OneHotEncoder(handle_unknown='ignore'), cat_feats)
+    ])
 
-    # Feature selection for model
-    feature_cols = []
-    candidate_features = ['mobilised_hour','CalYear','PumpOrder','PumpCount','NumPumpsAttending']
-    for f in candidate_features:
-        if f in merged.columns:
-            feature_cols.append(f)
-    # Borough as categorical
-    borough_feature = borough_col if borough_col and borough_col in merged.columns else None
+    model = Pipeline([
+        ('pre', preprocessor),
+        ('rf', RandomForestRegressor(n_estimators=80, random_state=42))
+    ])
 
-    st.subheader("Model inputs")
-    input_col1, input_col2 = st.columns(2)
-    with input_col1:
-        hour_in = st.number_input("Hour of call (0-23)", min_value=0, max_value=23, value=12)
-        year_in = st.selectbox("Year", options=sorted(merged['mobilised_year'].dropna().unique().astype(int).tolist()) if 'mobilised_year' in merged.columns else [2019], index=0)
-        pump_order_in = st.number_input("PumpOrder (if available)", min_value=0, max_value=10, value=1)
-    with input_col2:
-        borough_in = st.selectbox("Borough (optional)", options=[None]+(boroughs if boroughs else []))
-        num_pumps = st.number_input("NumPumpsAttending (if known)", min_value=0, max_value=20, value=1)
+    train, test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    model.fit(train, y_train)
 
-    # button to predict
-    do_predict = st.button("Predict response time")
+    st.success("Model trained successfully!")
 
-    # If no model, allow training a quick baseline
-    if loaded_model is None:
-        train_quick = st.checkbox("Train a quick baseline RandomForest (on available rows) — caches result", value=False)
-        rf_model = None
-        pipeline = None
-        if train_quick:
-            st.info("Training baseline model: this uses available rows with non-null response and basic features (may take ~30-90s depending on dataset).")
-            # prepare dataset
-            df_model = merged.copy()
-            # ensure features exist
-            # create borough as category if present
-            use_cols = []
-            if 'mobilised_hour' in df_model.columns:
-                use_cols.append('mobilised_hour')
-            if 'mobilised_year' in df_model.columns:
-                use_cols.append('mobilised_year')
-            if 'PumpOrder' in df_model.columns:
-                use_cols.append('PumpOrder')
-            if 'NumPumpsAttending' in df_model.columns:
-                use_cols.append('NumPumpsAttending')
-            if borough_feature:
-                use_cols.append(borough_feature)
+    col1, col2, col3 = st.columns(3)
+    hour_in = col1.number_input("Hour of Call", min_value=0, max_value=23, value=12)
+    year_in = col2.selectbox("Year", years, index=len(years)-1)
+    borough_in = col3.selectbox("Borough", boroughs) if borough_col else None
 
-            df_model = df_model.dropna(subset=use_cols + ['response_seconds'])
-            if len(df_model) < 200:
-                st.warning("Not enough rows to train a reliable model. Need at least ~200 rows with the required columns.")
-            else:
-                X = df_model[use_cols]
-                y = df_model['response_seconds']
-                # build preprocessing pipeline
-                numeric_feats = [c for c in use_cols if c != borough_feature]
-                cat_feats = [borough_feature] if borough_feature in use_cols else []
-                preprocessor = ColumnTransformer([
-                    ('num', 'passthrough', numeric_feats),
-                    ('cat', OneHotEncoder(handle_unknown='ignore'), cat_feats)
-                ])
-                pipeline = Pipeline([
-                    ('pre', preprocessor),
-                    ('rf', RandomForestRegressor(n_estimators=80, max_depth=10, n_jobs=-1, random_state=42))
-                ])
-                X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-                pipeline.fit(X_train, y_train)
-                rf_model = pipeline
-                st.success("Quick baseline trained and cached.")
-
-    ####################
-    # Perform prediction
-    ####################
-    if do_predict:
-        # prepare input row
-        input_df = pd.DataFrame([{
-            'mobilised_hour': hour_in,
-            'mobilised_year': year_in,
-            'PumpOrder': pump_order_in,
-            'NumPumpsAttending': num_pumps,
-            borough_feature: borough_in if borough_feature else None
+    if st.button("Predict"):
+        input_data = pd.DataFrame([{
+            'hour': hour_in,
+            'year': year_in,
+            borough_col: borough_in
         }])
-        # align with model
-        if loaded_model is not None:
-            try:
-                # if loaded_model is a pipeline or has predict
-                pred = loaded_model.predict(input_df.select_dtypes(include=[np.number, object], errors='ignore'))
-                st.metric("Predicted response (s)", f"{pred[0]:.1f}", delta=None)
-                st.write("Estimated:", human_seconds(pred[0]))
-            except Exception as e:
-                # attempt to use pipeline-style predict (if preprocessor missing)
-                try:
-                    pred = loaded_model.predict(input_df)
-                    st.metric("Predicted response (s)", f"{pred[0]:.1f}")
-                    st.write("Estimated:", human_seconds(pred[0]))
-                except Exception as e2:
-                    st.error(f"Model present but prediction failed: {e}; {e2}")
-        elif rf_model is not None:
-            try:
-                # ensure columns match
-                pred = rf_model.predict(input_df)
-                st.metric("Predicted response (s)", f"{pred[0]:.1f}")
-                st.write("Estimated:", human_seconds(pred[0]))
-            except Exception as e:
-                st.error(f"Prediction error with trained baseline: {e}")
-        else:
-            st.warning("No model available. Train a quick baseline or add a saved model into the repo (scaler.joblib, models/*.joblib).")
+        pred = model.predict(input_data)[0]
+        st.metric("Predicted Response Time", f"{pred:.1f} sec", delta=None)
+        st.write(f"≈ {human_time(pred)}")
 
-    st.markdown("---")
-    st.markdown("**Model files:** You can add `scaler.joblib` and a pipeline/model file into the repo `models/` folder. The app will try to auto-load them on startup.")
-
-########################################
-# Footer
-########################################
 st.sidebar.markdown("---")
-st.sidebar.write("Streamlit app generated for your London Fire Brigade project.")
-st.sidebar.write("Notes:")
-st.sidebar.markdown("""
-- If your filenames are different in the repo, upload them manually.  
-- To deploy on Streamlit Cloud: push this `app.py` and the data/model files to GitHub and then deploy.  
-- If dataset is very large, the app samples for plotting to keep UI responsive.  
-""")
+st.sidebar.caption("Built & deployed for London Fire Brigade Response Analysis (sha-md).")
