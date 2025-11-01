@@ -175,12 +175,22 @@ with tab1:
     fig2 = px.line(trend, x="month", y="response_seconds", title="Average Monthly Response Time")
     st.plotly_chart(fig2, use_container_width=True)
 
-    st.subheader("📍 Map of Incidents (sample)")
-    lat = "Latitude" if "Latitude" in dfv.columns else "Incident_Latitude"
-    lon = "Longitude" if "Longitude" in dfv.columns else "Incident_Longitude"
-    if lat in dfv.columns and lon in dfv.columns:
-        smp = dfv.dropna(subset=[lat, lon]).sample(min(1500, len(dfv)), random_state=42)
-        st.map(smp[[lat, lon]])
+   st.subheader("📍 Map of Incidents (sample)")
+
+# Detect and rename latitude/longitude columns
+possible_lat_cols = ["Latitude", "Incident_Latitude", "Incident_Lat", "lat"]
+possible_lon_cols = ["Longitude", "Incident_Longitude", "Incident_Lon", "lon"]
+
+lat_col = next((c for c in possible_lat_cols if c in dfv.columns), None)
+lon_col = next((c for c in possible_lon_cols if c in dfv.columns), None)
+
+if lat_col and lon_col:
+    smp = dfv.dropna(subset=[lat_col, lon_col]).sample(min(1500, len(dfv)), random_state=42)
+    smp = smp.rename(columns={lat_col: "latitude", lon_col: "longitude"})  # normalize for Streamlit
+    st.map(smp[["latitude", "longitude"]])
+else:
+    st.warning("⚠️ Latitude/Longitude columns not found in dataset, skipping map plot.")
+
 
     st.markdown("---")
     st.dataframe(dfv.head(200))
@@ -228,4 +238,5 @@ with tab2:
 
 st.sidebar.markdown("---")
 st.sidebar.caption("⚡ Cloud-Optimized Streamlit App | Data: GitHub Releases | Project by sha-md")
+
 
