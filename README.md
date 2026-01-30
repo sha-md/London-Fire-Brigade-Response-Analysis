@@ -125,7 +125,7 @@ This shows how machine learning can generate **economic as well as operational v
 High-travel-distance boroughs can improve outcomes through better station allocation and route optimization.
 
 ---
-##Engineering & MLOps Practices
+## Engineering & MLOPs Practices
 
 This project applies foundational MLOps best practices:
 -Version-controlled ML code and data pipelines (GitHub)
