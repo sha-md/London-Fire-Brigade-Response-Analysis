@@ -14,7 +14,7 @@ Developed as a **group project** at *DataScientest (Germany)* and later extended
 - [Model Interpretability](#model-interpretability)
 - [Cost–Benefit Impact](#costbenefit-impact)
 - [Key Results](#key-results)
-- [Engineering & MLOps Practices](#Engineering-&-MLOps-Practices)
+- [Engineering and MLOps Foundations](#engineering-and-mlops-foundations)
 - [Author](#author)
 
 ---
@@ -126,7 +126,7 @@ This shows how machine learning can generate **economic as well as operational v
 High-travel-distance boroughs can improve outcomes through better station allocation and route optimization.
 
 ---
-## Engineering & MLOps Practices
+## Engineering and MLOps Foundations
 
 This project applies foundational MLOps best practices:
 - Version-controlled ML code and data pipelines (GitHub).
