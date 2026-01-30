@@ -128,11 +128,11 @@ High-travel-distance boroughs can improve outcomes through better station alloca
 ## Engineering & MLOPs Practices
 
 This project applies foundational MLOps best practices:
--Version-controlled ML code and data pipelines (GitHub)
--Reproducible environments using Docker
--Automated builds via GitHub Actions (CI/CD)
--Separation of training and inference workflows
--Persisted model artifacts for reuse
+- Version-controlled ML code and data pipelines (GitHub).
+- Reproducible environments using Docker.
+- Automated builds via GitHub Actions (CI/CD).
+- Separation of training and inference workflows.
+- Persisted model artifacts for reuse.
 
 These practices ensure reproducibility, maintainability, and deployment readiness.
 
