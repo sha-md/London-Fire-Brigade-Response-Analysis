@@ -82,7 +82,8 @@ Technologies used: **Streamlit, Python, Pandas, Plotly, scikit-learn**
    - Final model Mean Absolute Error (MAE): **56 seconds**.  
 
 4. **Deployment**
-   - Built and deployed using **Streamlit Cloud** with cached model inference for fast performance.  
+   - Built and deployed using **Streamlit Cloud** with cached model inference for fast performance.
+   - The application is containerized for reproducibility and automated builds.  
    - Data hosted through GitHub Releases (.csv.gz format).  
 
 ---
@@ -125,7 +126,7 @@ This shows how machine learning can generate **economic as well as operational v
 High-travel-distance boroughs can improve outcomes through better station allocation and route optimization.
 
 ---
-## Engineering & MLOPs Practices
+## Engineering & MLOps Practices
 
 This project applies foundational MLOps best practices:
 - Version-controlled ML code and data pipelines (GitHub).
