@@ -14,6 +14,7 @@ Developed as a **group project** at *DataScientest (Germany)* and later extended
 - [Model Interpretability](#model-interpretability)
 - [Cost–Benefit Impact](#costbenefit-impact)
 - [Key Results](#key-results)
+- [Engineering & MLOps Practices](#Engineering-&-MLOps-Practices)
 - [Author](#author)
 
 ---
@@ -124,10 +125,22 @@ This shows how machine learning can generate **economic as well as operational v
 High-travel-distance boroughs can improve outcomes through better station allocation and route optimization.
 
 ---
+##Engineering & MLOps Practices
+
+This project applies foundational MLOps best practices:
+-Version-controlled ML code and data pipelines (GitHub)
+-Reproducible environments using Docker
+-Automated builds via GitHub Actions (CI/CD)
+-Separation of training and inference workflows
+-Persisted model artifacts for reuse
+
+These practices ensure reproducibility, maintainability, and deployment readiness.
+
+---
 
 ## Author
 
 **Shabnam Begam Mahammad**  
 [LinkedIn](https://www.linkedin.com/in/shabnam-b-mahammad) | 
-[Email](mailto:shabnam71.md@gmail.com) | 
+[Email](mailto:md.shabnam21@gmail.com) 
 
