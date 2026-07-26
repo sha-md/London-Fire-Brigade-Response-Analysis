@@ -6,7 +6,7 @@ Originally developed as a **group project** during the **DataScientest Data Scie
 
 ---
 
-![Dashboard Overview](assets/dashboard-overview.png)
+![Dashboard Overview](assets/dashboard_overview.png)
 
 ---
 
