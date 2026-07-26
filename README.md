@@ -59,7 +59,6 @@ The application enables users to:
 - Predict expected response times using machine learning.
 - Visualise historical and forecasted trends through an interactive Streamlit application.
 
-Originally developed as part of the **DataScientest Data Science programme**, the project has since been extended into a deployable analytics application with interactive dashboards, containerisation and continuous integration.
 
 ---
 
