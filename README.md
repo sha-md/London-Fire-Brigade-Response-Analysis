@@ -1,147 +1,334 @@
-# London Fire Brigade – Response Time Analysis & Prediction
+# 🚒 London Fire Brigade Response Time Analytics
 
-A data science and machine learning project analyzing and predicting **London Fire Brigade (LFB)** response times.  
-Developed as a **group project** at *DataScientest (Germany)* and later extended into an **interactive Streamlit web application** by **Shabnam B. Mahammad**.
+An interactive **data science and machine learning project** for analysing and predicting **London Fire Brigade (LFB)** response times using **Python, Streamlit, Scikit-learn, Plotly, Docker and GitHub Actions**.
 
----
-
-## Table of Contents
-- [Project Background](#project-background)
-- [Business Objective](#business-objective)
-- [Why This Project Matters](#why-this-project-matters)
-- [Streamlit Web App](#streamlit-web-app)
-- [Technical Workflow](#technical-workflow)
-- [Model Interpretability](#model-interpretability)
-- [Cost–Benefit Impact](#costbenefit-impact)
-- [Key Results](#key-results)
-- [Engineering and MLOps Foundations](#engineering-and-mlops-foundations)
-- [Author](#author)
+Originally developed as a **group project** during the **DataScientest Data Science programme**, this project was subsequently **extended and enhanced by Shabnam B. Mahammad** into a fully interactive Streamlit web application featuring machine learning prediction, exploratory analytics, Docker containerisation and continuous integration with GitHub Actions.
 
 ---
 
-## Project Background
-
-This project explores how quickly the **London Fire Brigade** responds to incidents across different boroughs between 2009 and 2023.  
-It applies data cleaning, feature engineering, and machine learning modeling to estimate and visualize emergency response times — and forecast future performance up to 2030.
+![Dashboard Overview](assets/dashboard-overview.png)
 
 ---
 
-## Business Objective
+# 📑 Table of Contents
 
-The project aims to provide the London Fire Brigade (LFB) with data-driven insights to:
-
-1. Analyze how response times vary by borough, time of day, and incident type.  
-2. Identify operational and geographic factors contributing to longer response times.  
-3. Predict expected arrival times for new incidents.  
-4. Forecast future performance and support strategic station planning.
-
-Improving response times enhances **public safety**, **reduces property damage**, and optimizes **operational efficiency** within the organization.
-
----
-
-## Why This Project Matters
-
-Predicting emergency response times is not just a data exercise — it has real-world impact.
-
-- Faster emergency responses can save lives and reduce property losses.  
-- Insights can improve crew allocation, resource planning, and station placement.  
-- Predictive models enable proactive, evidence-based decision-making.  
-
-A 10-second improvement in the citywide average response time can impact thousands of emergency outcomes annually.
+- [📸 Application Preview](#-application-preview)
+- [📖 Project Overview](#-project-overview)
+- [🎯 Project Objectives](#-project-objectives)
+- [📂 Dataset](#-dataset)
+- [✨ Features](#-features)
+- [🛠 Technology Stack](#-technology-stack)
+- [📊 Interactive Dashboard](#-interactive-dashboard)
+- [🤖 Machine Learning Pipeline](#-machine-learning-pipeline)
+- [📈 Model Performance](#-model-performance)
+- [⚡ Performance Optimisations](#-performance-optimisations)
+- [🐳 Deployment](#-deployment)
+- [📁 Repository Structure](#-repository-structure)
+- [🚀 Getting Started](#-getting-started)
+- [🔮 Future Improvements](#-future-improvements)
+- [👩‍💻 Author](#-author)
 
 ---
 
-## Streamlit Web App
+# 📸 Application Preview
+
+## Dashboard Overview
+
+![Dashboard](assets/dashboard_overview.png)
+
+---
+
+## Analytics Dashboard
+
+![Analytics](assets/analytics_dashboard.png)
+
+---
+
+## Response Time Predictor
+
+![Predictor](assets/predictor.png)
+
+---
+
+# 📖 Project Overview
+
+Emergency response time is one of the most important operational performance indicators for fire and rescue services.
+
+This project analyses historical **London Fire Brigade mobilisation and incident data** to explore emergency response performance across London boroughs between **2009 and 2023**.
+
+The application enables users to:
+
+- Explore historical response time trends.
+- Compare borough-level performance.
+- Analyse yearly and hourly response patterns.
+- Predict expected response times using machine learning.
+- Visualise historical and forecasted trends through an interactive Streamlit application.
+
+Originally developed as part of the **DataScientest Data Science programme**, the project has since been extended into a deployable analytics application with interactive dashboards, containerisation and continuous integration.
+
+---
+
+# 🎯 Project Objectives
+
+The project aims to:
+
+- Analyse historical London Fire Brigade response performance.
+- Identify patterns affecting emergency response times.
+- Compare operational performance across boroughs.
+- Develop a predictive machine learning model.
+- Provide an intuitive web application for interactive exploration.
+- Demonstrate an end-to-end data science workflow from raw data to deployment.
+
+---
+
+# 📂 Dataset
+
+The project uses publicly available datasets released by the **London Fire Brigade**.
+
+The analysis combines:
+
+- Incident dataset
+- Mobilisation dataset
+
+The study focuses on incidents recorded between **2009 and 2023**.
+
+To keep the repository lightweight, large datasets are compressed and distributed through **GitHub Releases**.
+
+---
+
+# ✨ Features
+
+✅ Interactive Streamlit web application
+
+✅ Borough-level response time analytics
+
+✅ Yearly trend analysis
+
+✅ Hourly response analysis
+
+✅ Interactive data visualisation
+
+✅ Machine learning prediction
+
+✅ Forecast visualisation
+
+✅ Docker containerisation
+
+✅ GitHub Actions continuous integration
+
+---
+
+# 🛠 Technology Stack
+
+| Category | Technologies |
+|------------|-------------|
+| Programming | Python |
+| Data Analysis | Pandas, NumPy |
+| Machine Learning | Scikit-learn |
+| Visualisation | Plotly, Streamlit |
+| Feature Engineering | Pandas |
+| Model Pipeline | ColumnTransformer, Pipeline |
+| Deployment | Streamlit Cloud |
+| Containerisation | Docker |
+| CI | GitHub Actions |
+
+---
+
+# 📊 Interactive Dashboard
 
 Live Demo: **[Click Here to Open](https://sha-md-london-fire-brigade-response-analysis-app-ru7by8.streamlit.app/)**
 
-This app allows users to:
-- Visualize historical response data by borough and year.  
-- Predict response times based on input features (borough, hour, year).  
-- Forecast trends for 2024–2030 using trained machine learning models.  
-- Explore data interactively in a simple, user-friendly interface.
+The Streamlit application provides multiple interactive views for exploring response time data.
 
-Technologies used: **Streamlit, Python, Pandas, Plotly, scikit-learn**
+### Dashboard
 
----
+- Key performance metrics
+- Borough comparison
+- Response time distribution
 
-## Technical Workflow
+### Analytics
 
-1. **Data Sources**
-   - London Fire Brigade *Incident* and *Mobilisation* datasets (2009–2023).  
-   - Enriched with geographic coordinates for spatial analysis.  
+- Yearly response trends
+- Hourly response trends
+- Interactive visualisations
 
-2. **Data Cleaning and Feature Engineering**
-   - Removed anomalies (pre-2014 data, 2020 COVID impact).  
-   - Extracted new columns: `TravelDistance`, `TravelSpeed`, `Station_Loc_same_incident_Loc`.  
-   - Extracted temporal features: `Year`, `Month`, `Weekday`, `Hour`.  
+### Predictor
 
-3. **Model Development**
-   - Tested Linear Regression, Decision Tree, Random Forest, and XGBoost.  
-   - Selected **XGBoost** for best accuracy and **Random Forest** for deployment.  
-   - Final model Mean Absolute Error (MAE): **56 seconds**.  
+Users can estimate expected response time by selecting:
 
-4. **Deployment**
-   - Built and deployed using **Streamlit Cloud** with cached model inference for fast performance.
-   - The application is containerized for reproducibility and automated builds.  
-   - Data hosted through GitHub Releases (.csv.gz format).  
+- Borough
+- Hour of call
+- Year
+
+The application returns the predicted response time generated by the trained machine learning model.
 
 ---
 
-## Model Interpretability
+# 🤖 Machine Learning Pipeline
 
-Explainability was achieved using **SHAP (SHapley Additive exPlanations)** to understand which features most influence predictions.
+The deployed prediction model is built using **Scikit-learn's Pipeline API**.
 
-| Feature | Influence | Description |
-|----------|------------|-------------|
-| TravelDistance | High | Longer distances increase response time. |
-| Borough | Medium | Denser boroughs slightly slower. |
-| HourOfCall | Medium | Rush hours cause longer travel. |
-| Station_Loc_same_incident_Loc | Low | If true, responses are faster. |
-| CalYear | Negative | Consistent improvement over time. |
+The workflow includes:
 
-Understanding *why* response times differ helps optimize station locations, traffic routing, and resource allocation.
+- Data preprocessing
+- Feature engineering
+- Categorical encoding
+- Model training
+- Prediction
+- Forecast visualisation
 
----
+Pipeline components include:
 
-## Cost–Benefit Impact
+- ColumnTransformer
+- OneHotEncoder
+- RandomForestRegressor
 
-- Reducing the mean response time by **1 minute** could save hundreds of thousands of pounds annually in reduced fire damage and insurance payouts.  
-- Operational efficiency improvements could lead to **5–8% cost reduction** in staff and vehicle utilization.  
-- Predictive insights enable budget optimization while maintaining high service quality.
-
-This shows how machine learning can generate **economic as well as operational value** for public safety organizations.
+This architecture keeps preprocessing and prediction within a single reusable pipeline.
 
 ---
 
-## Key Results
+# 📈 Model Performance
 
-| Metric | Model | Value |
-|---------|--------|--------|
-| Mean Absolute Error (MAE) | XGBoost | 56 seconds |
-| Average Response Time | Historical (2009–2023) | ≈ 6 minutes |
-| Forecast Trend | 2024–2030 | Gradual improvement (−4%) |
+Multiple regression algorithms were evaluated during model development.
 
-**Business Insight:**  
-High-travel-distance boroughs can improve outcomes through better station allocation and route optimization.
+The deployed application uses a **Random Forest Regressor**, selected for its balance between predictive performance and inference speed within the Streamlit application.
 
----
-## Engineering and MLOps Foundations
-
-This project applies foundational MLOps best practices:
-- Version-controlled ML code and data pipelines (GitHub).
-- Reproducible environments using Docker.
-- Automated builds via GitHub Actions (CI/CD).
-- Separation of training and inference workflows.
-- Persisted model artifacts for reuse.
-
-These practices ensure reproducibility, maintainability, and deployment readiness.
+| Metric | Value |
+|---------|------:|
+| Mean Absolute Error (MAE) | ~56 seconds |
 
 ---
 
-## Author
+# ⚡ Performance Optimisations
+
+Several techniques improve application responsiveness.
+
+- `st.cache_data()` for dataset caching.
+- `st.cache_resource()` for model caching.
+- Compressed `.csv.gz` datasets.
+- Efficient preprocessing using Scikit-learn Pipelines.
+- Random sampling for faster exploratory analysis.
+
+These optimisations reduce loading times and improve the overall user experience.
+
+---
+
+# 🐳 Deployment
+
+The application is fully containerised using Docker.
+
+Continuous Integration is implemented using GitHub Actions, automatically building the Docker image whenever new changes are pushed to the repository.
+
+Deployment components include:
+
+- Docker
+- GitHub Actions
+- Streamlit
+
+---
+
+# 📁 Repository Structure
+
+```text
+London-Fire-Brigade-Response-Analysis
+│
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+│
+├── assets/
+│   └── screenshots/
+│       ├── dashboard-overview.png
+│       ├── analytics-dashboard.png
+│       └── predictor.png
+│
+├── notebooks/
+│
+├── app.py
+├── Dockerfile
+├── requirements.txt
+├── style.css
+└── README.md
+```
+
+---
+
+# 🚀 Getting Started
+
+## Clone the repository
+
+```bash
+git clone https://github.com/sha-md/London-Fire-Brigade-Response-Analysis.git
+```
+
+## Navigate to the project
+
+```bash
+cd London-Fire-Brigade-Response-Analysis
+```
+
+## Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+## Run the Streamlit application
+
+```bash
+streamlit run app.py
+```
+
+---
+
+## Using Docker
+
+Build the Docker image.
+
+```bash
+docker build -t lfb-analysis .
+```
+
+Run the container.
+
+```bash
+docker run -p 8501:8501 lfb-analysis
+```
+
+---
+
+# 🔮 Future Improvements
+
+Potential future enhancements include:
+
+- SHAP visualisations integrated into the dashboard.
+- Hyperparameter optimisation.
+- Geographic mapping of incidents.
+- Enhanced forecasting models.
+- Unit testing.
+- Cloud deployment with automated monitoring.
+- Modular project structure.
+
+---
+
+# 👩‍💻 Author
+
+**Shabnam B. Mahammad**
 
 **Shabnam Begam Mahammad**  
-[LinkedIn](https://www.linkedin.com/in/shabnam-b-mahammad) | 
+[LinkedIn](https://www.linkedin.com/in/shabnam-b-mahammad)
 [Email](mailto:md.shabnam21@gmail.com) 
+
+---
+
+
+
+
+
+
+  
+
+
+
+
 
