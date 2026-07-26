@@ -231,7 +231,6 @@ London-Fire-Brigade-Response-Analysis
 │       └── ci.yml
 │
 ├── assets/
-│   └── screenshots/
 │       ├── dashboard-overview.png
 │       ├── analytics-dashboard.png
 │       └── predictor.png
