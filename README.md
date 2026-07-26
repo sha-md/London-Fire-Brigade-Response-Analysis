@@ -308,8 +308,6 @@ Potential future enhancements include:
 
 # 👩‍💻 Author
 
-**Shabnam B. Mahammad**
-
 **Shabnam Begam Mahammad**  
 [LinkedIn](https://www.linkedin.com/in/shabnam-b-mahammad)
 [Email](mailto:md.shabnam21@gmail.com) 
