@@ -32,11 +32,6 @@ Originally developed as a **group project** during the **DataScientest Data Scie
 
 # 📸 Application Preview
 
-## Dashboard Overview
-
-![Dashboard](assets/dashboard_overview.png)
-
----
 
 ## Analytics Dashboard
 
